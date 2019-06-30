@@ -1,0 +1,27 @@
+# Output
+*.o
+*.so
+*.la
+*.lo
+*.pc
+
+# Autotools
+m4/*
+aclocal.m4
+ar-lib
+autom4te.cache/
+compile
+config.guess
+config.log
+config.status
+config.sub
+configure
+depcomp
+missing
+ltmain.sh
+libtool
+install-sh
+Makefile.in
+Makefile
+.deps
+.libs
