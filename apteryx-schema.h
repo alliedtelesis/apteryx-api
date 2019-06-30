@@ -1,7 +1,9 @@
 /**
- * @file apteryx-xml.h
+ * @file apteryx-schema.h
  *
- * Libraries for using an XML based schema with Apteryx.
+ * Database schema support for Apteryx.
+ *
+ * Copyright 2019, Allied Telesis Labs New Zealand, Ltd
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,8 +18,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this library. If not, see <http://www.gnu.org/licenses/>
  */
-#ifndef _APTERYX_XML_H_
-#define _APTERYX_XML_H_
+#ifndef _APTERYX_SCHEMA_H_
+#define _APTERYX_SCHEMA_H_
 
 /* Schema */
 typedef void sch_instance;
@@ -33,4 +35,4 @@ char* sch_name (sch_node *node);
 char* sch_translate_to (sch_node *node, char *value);
 char* sch_translate_from (sch_node *node, char *value);
 
-#endif /* _APTERYX_XML_H_ */
+#endif /* _APTERYX_SCHEMA_H_ */

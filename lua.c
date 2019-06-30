@@ -1,6 +1,6 @@
 /**
  * @file lua.c
- * Lua bindings for using an XML schema with Apteryx.
+ * Lua bindings for using a database schema with Apteryx.
  *
  * Copyright 2016, Allied Telesis Labs New Zealand, Ltd
  *
@@ -26,12 +26,12 @@
 #include <lua.h>
 #include <lauxlib.h>
 #include <apteryx.h>
-#include "apteryx-xml.h"
+#include "apteryx-schema.h"
 
 /* Debug */
-static bool apteryx_xml_debug = false;
+static bool apteryx_schema_debug = false;
 #define DEBUG(fmt, args...) \
-    if (apteryx_xml_debug) \
+    if (apteryx_schema_debug) \
     { \
         syslog (LOG_DEBUG, fmt, ## args); \
         printf (fmt, ## args); \
@@ -50,7 +50,7 @@ lua_apteryx_debug (lua_State *L)
         luaL_error (L, "Invalid arguments: requires boolean");
         return 0;
     }
-    apteryx_xml_debug = lua_toboolean (L, 1);
+    apteryx_schema_debug = lua_toboolean (L, 1);
     return 0;
 }
 
@@ -386,7 +386,7 @@ lua_apteryx_valid (lua_State *L)
 }
 
 int
-luaopen_libapteryx_xml (lua_State *L)
+luaopen_libapteryx_schema (lua_State *L)
 {
     /* Standard functions */
     static const luaL_Reg _apteryx_fns[] = {
@@ -409,13 +409,13 @@ luaopen_libapteryx_xml (lua_State *L)
 }
 
 int
-luaopen_apteryx_xml (lua_State *L)
+luaopen_apteryx_schema (lua_State *L)
 {
-    return luaopen_libapteryx_xml (L);
+    return luaopen_libapteryx_schema (L);
 }
 
 int
-luaopen_xml (lua_State *L)
+luaopen_schema (lua_State *L)
 {
-    return luaopen_libapteryx_xml (L);
+    return luaopen_libapteryx_schema (L);
 }

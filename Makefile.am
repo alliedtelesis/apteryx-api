@@ -1,23 +1,29 @@
-lib_LTLIBRARIES = libapteryx-xml.la
+lib_LTLIBRARIES = libapteryx-schema.la
 
-libapteryx_xml_la_SOURCES = schema.c
+libapteryx_schema_la_SOURCES = schema.c
 if HAVE_LUA
-libapteryx_xml_la_SOURCES += lua.c
+libapteryx_schema_la_SOURCES += lua.c
 endif
 
-libapteryx_xml_la_CFLAGS = -D_GNU_SOURCE
-if HAVE_LUA
-libapteryx_xml_la_CFLAGS += @LUA_CFLAGS@
+libapteryx_schema_la_CFLAGS = -D_GNU_SOURCE
+if HAVE_LIBXML
+libapteryx_schema_la_CFLAGS += @LIBXML_CFLAGS@
 endif
-libapteryx_xml_la_CFLAGS += @LIBXML_CFLAGS@ @APTERYX_CFLAGS@ @GLIB_CFLAGS@
-
-libapteryx_xml_la_LIBADD =
 if HAVE_LUA
-libapteryx_xml_la_LIBADD += @LUA_LIBS@
+libapteryx_schema_la_CFLAGS += @LUA_CFLAGS@
 endif
-libapteryx_xml_la_LIBADD += @APTERYX_LIBS@ @GLIB_LIBS@
+libapteryx_schema_la_CFLAGS += @APTERYX_CFLAGS@ @GLIB_CFLAGS@
 
-include_HEADERS = apteryx-xml.h
+libapteryx_schema_la_LIBADD =
+if HAVE_LIBXML
+libapteryx_schema_la_LIBADD += @LIBXML_LIBS@
+endif
+if HAVE_LUA
+libapteryx_schema_la_LIBADD += @LUA_LIBS@
+endif
+libapteryx_schema_la_LIBADD += @APTERYX_LIBS@ @GLIB_LIBS@
+
+include_HEADERS = apteryx-schema.h
 
 pkgconfigdir = $(libdir)/pkgconfig
-pkgconfig_DATA = apteryx-xml.pc
+pkgconfig_DATA = apteryx-schema.pc

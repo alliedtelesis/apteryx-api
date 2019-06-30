@@ -1,19 +1,24 @@
-# Apteryx-XML
-An Apteryx database schema defined in XML
+# Apteryx-Schema
+Database schema support for Apteryx.
 
 ## Requires
 ```
-apteryx glib-2.0 lua cunit pyang xsltproc
+apteryx glib-2.0
+```
+
+## Optional
+```
+lua libxml-2.0 xsltproc pyang
 ```
 
 ## Building
 ```
-make
-make test
+./autogen.sh
+./configure
 make install
 ```
 
-## Schema definition
+## XML Schema definition
 ```xml
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
   targetNamespace="https://github.com/alliedtelesis/apteryx"
@@ -100,11 +105,16 @@ make install
 </MODULE>
 ```
 
+### Generate paths in C header file format
+```shell
+./xml2c <module>.xml
+```
+
 ## Lua library
 
 ### Set/Get
 ```lua
-api = require('apteryx-xml').api('/PATH/TO/SCHEMA/')
+api = require('apteryx-schema').api('/PATH/TO/SCHEMA/')
 api.test.debug = 'enable'
 assert(api.test.debug == 'enable')
 api.test.debug = nil
@@ -112,7 +122,7 @@ assert(api.test.debug == 'disable')
 ```
 ### Lists
 ```lua
-api = require('apteryx-xml').api('/PATH/TO/SCHEMA/')
+api = require('apteryx-schema').api('/PATH/TO/SCHEMA/')
 api.test.list('cat-nip').sub_list('dog').i_d = '1'
 assert(api.test.list('cat-nip').sub_list('dog').i_d == '1')
 api.test.list('cat-nip').sub_list('dog').i_d = nil
@@ -120,7 +130,7 @@ assert(api.test.list('cat-nip').sub_list('dog').i_d == nil)
 ```
 ### Search
 ```lua
-api = require('apteryx-xml').api('/PATH/TO/SCHEMA/')
+api = require('apteryx-schema').api('/PATH/TO/SCHEMA/')
 api.test.list('cat-nip').sub_list('dog').i_d = '1'
 api.test.list('cat-nip').sub_list('cat').i_d = '2'
 api.test.list('cat-nip').sub_list('mouse').i_d = '3'
@@ -139,14 +149,7 @@ api.test.list('cat_nip').sub_list('frog').i_d = nil
 api.test.list('cat_nip').sub_list('horse').i_d = nil
 ```
 
-## Conversion between other formats
-
-### Generate paths in C header file format
-```shell
-./xml2c <module>.xml
-```
-
-### Convert between YANG and Apteryx-XML
+## Convert between YANG and Apteryx-XML
 
 * YANG enumerations assume an implcicit pattern, so patterns on Apteryx-XML enumerations are discarded
 * YANG leaf-lists are subtly different to Apteryx-XML simple lists in that there is no name/value pair

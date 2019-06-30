@@ -4,7 +4,7 @@ libdir=@libdir@
 includedir=@includedir@
 
 Name: @PACKAGE_NAME@
-Description: XML based schema for Apteryx
+Description: Database schema support for Apteryx
 Version: @VERSION@
-Libs: -lapteryx-xml
+Libs: -lapteryx-schema
 Cflags:

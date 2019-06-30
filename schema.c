@@ -28,7 +28,7 @@
 #include <syslog.h>
 #include <libxml/parser.h>
 #include <libxml/tree.h>
-#include "apteryx-xml.h"
+#include "apteryx-schema.h"
 
 /* List full paths for all XML files in the search path */
 static void
