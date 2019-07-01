@@ -1,4 +1,4 @@
-AC_INIT([apteryx-schema], [1.0])
+AC_INIT([apteryx_schema], [1.0])
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 
 AC_PROG_CC_STDC
@@ -34,6 +34,15 @@ AM_CONDITIONAL([HAVE_LUA], [test x$lua = xtrue])
 if test x$lua = xtrue; then
     PKG_CHECK_MODULES(LUA, [lua5.3],,[PKG_CHECK_MODULES(LUA, [lua5.2])])
 fi
+
+AC_ARG_ENABLE([tests],
+[  --enable-tests          build unit tests (default=yes)],
+[case "${enableval}" in
+  yes) tests=true ;;
+  no)  tests=false ;;
+  *) AC_MSG_ERROR([bad value ${enableval} for --enable-tests]) ;;
+esac],[tests=true])
+AM_CONDITIONAL([HAVE_TESTS], [test x$tests = xtrue])
 
 AC_CONFIG_FILES([Makefile apteryx-schema.pc])
 AC_OUTPUT
