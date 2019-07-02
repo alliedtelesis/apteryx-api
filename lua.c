@@ -29,7 +29,7 @@
 #include "apteryx-schema.h"
 
 /* Debug */
-static bool apteryx_schema_debug = false;
+extern bool apteryx_schema_debug;
 #define DEBUG(fmt, args...) \
     if (apteryx_schema_debug) \
     { \
@@ -38,7 +38,7 @@ static bool apteryx_schema_debug = false;
     }
 
 /* Global pointer to the loaded schema */
-static sch_instance *api = NULL;
+static apteryx_schema_instance *api = NULL;
 /* A root user can write to read-only fields */
 static bool is_root = true;
 
@@ -56,15 +56,15 @@ lua_apteryx_debug (lua_State *L)
 
 /* Push either a value or table onto the stack */
 static bool
-push_node (lua_State *L, sch_instance *api, const char *path, const char *key)
+push_node (lua_State *L, apteryx_schema_instance *api, const char *path, const char *key)
 {
     char *__path;
-    sch_node *node;
+    apteryx_schema_node *node;
     char *name;
 
     /* Lookup the node */
     __path = g_strdup_printf ("%s/%s", path, key);
-    node = sch_lookup (api, __path);
+    node = apteryx_schema_lookup (api, __path);
     if (!node)
     {
         /* Not accessible at all */
@@ -74,7 +74,7 @@ push_node (lua_State *L, sch_instance *api, const char *path, const char *key)
     }
 
     /* Use the real path name */
-    name = sch_name (node);
+    name = apteryx_schema_name (node);
     if (strcmp (name , "*") != 0)
     {
         free (__path);
@@ -83,12 +83,12 @@ push_node (lua_State *L, sch_instance *api, const char *path, const char *key)
     free (name);
 
     /* For leaves we return a value - either from db, default or nil */
-    if (sch_is_leaf (node))
+    if (apteryx_schema_is_leaf (node))
     {
         char *value;
 
         /* Make sure we have access */
-        if (!is_root && !sch_is_readable (node))
+        if (!is_root && !apteryx_schema_is_readable (node))
         {
             /* Not readable */
             g_free (__path);
@@ -99,7 +99,7 @@ push_node (lua_State *L, sch_instance *api, const char *path, const char *key)
         /* Get the value from Apteryx or its default */
         value = apteryx_get (__path);
         /* Pass back defined values if they exist in the schema */
-        value = sch_translate_to (node, value);
+        value = apteryx_schema_translate_to (node, value);
         lua_pushstring (L, value);
         free (value);
     }
@@ -195,8 +195,8 @@ __newindex (lua_State *L)
 
     /* Validate the node */
     char *__path = g_strdup_printf ("%s/%s", path, key);
-    sch_node *node = sch_lookup (api, __path);
-    if (!node || (!is_root && !sch_is_writable (node)) || !sch_is_leaf (node))
+    apteryx_schema_node *node = apteryx_schema_lookup (api, __path);
+    if (!node || (!is_root && !apteryx_schema_is_writable (node)) || !apteryx_schema_is_leaf (node))
     {
         /* Not accessible */
         g_free ((gpointer) __path);
@@ -205,7 +205,7 @@ __newindex (lua_State *L)
     }
 
     /* Use the real path name */
-    name = sch_name (node);
+    name = apteryx_schema_name (node);
     if (strcmp (name , "*") != 0)
     {
         free (__path);
@@ -214,7 +214,7 @@ __newindex (lua_State *L)
     free (name);
 
     /* Translate from the schema version */
-    char *val = sch_translate_from (node, g_strdup (value));
+    char *val = apteryx_schema_translate_from (node, g_strdup (value));
     lua_pushboolean (L, apteryx_set (__path, val));
     g_free (val);
     g_free (__path);
@@ -283,8 +283,8 @@ __call (lua_State *L)
     {
         /* Validate the node */
         char *__path = g_strdup_printf ("%s/%s", path, key);
-        sch_node *node = sch_lookup (api, __path);
-        if (!node || (!is_root && !sch_is_writable (node)) || !sch_is_leaf (node))
+        apteryx_schema_node *node = apteryx_schema_lookup (api, __path);
+        if (!node || (!is_root && !apteryx_schema_is_writable (node)) || !apteryx_schema_is_leaf (node))
         {
             /* Not accessible */
             g_free ((gpointer) __path);
@@ -293,7 +293,7 @@ __call (lua_State *L)
         }
 
         /* Use the real path name */
-        char *name = sch_name (node);
+        char *name = apteryx_schema_name (node);
         if (strcmp (name , "*") != 0)
         {
             free (__path);
@@ -302,7 +302,7 @@ __call (lua_State *L)
         free (name);
 
         /* Translate from the schema version */
-        char *val = sch_translate_from (node, g_strdup (value));
+        char *val = apteryx_schema_translate_from (node, g_strdup (value));
         lua_pushboolean (L, apteryx_set (__path, val));
         g_free (val);
         g_free (__path);
@@ -340,11 +340,11 @@ lua_apteryx_api (lua_State *L)
     /* Cleanup old one */
     if (api)
     {
-        sch_free (api);
+        apteryx_schema_free (api);
     }
 
     /* Parse XML files in the specified directory */
-    api = sch_load (path);
+    api = apteryx_schema_load (path);
     if (!api)
     {
         /* No good */
@@ -373,7 +373,7 @@ lua_apteryx_valid (lua_State *L)
     }
 
     /* If no API, this path does not exist! */
-    if (api && sch_lookup (api, lua_tostring (L, 1)))
+    if (api && apteryx_schema_lookup (api, lua_tostring (L, 1)))
     {
         /* All good */
         lua_pushboolean (L, true);

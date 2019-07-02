@@ -1,8 +1,8 @@
 /**
  * @file schema.c
- * Utilities for validating paths against the XML schema.
+ * Database schema support for Apteryx.
  *
- * Copyright 2016, Allied Telesis Labs New Zealand, Ltd
+ * Copyright 2019, Allied Telesis Labs New Zealand, Ltd
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,22 +17,36 @@
  * You should have received a copy of the GNU General Public License
  * along with this library. If not, see <http://www.gnu.org/licenses/>
  */
-#include <stdio.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <glib.h>
+#include "internal.h"
 #include <dirent.h>
 #include <fnmatch.h>
-#include <syslog.h>
-#include <libxml/parser.h>
-#include <libxml/tree.h>
 #include "apteryx-schema.h"
 
-/* List full paths for all XML files in the search path */
+/* Debug */
+bool apteryx_schema_debug = false;
+
+struct apteryx_schema_node *
+node_create (const char *name)
+{
+    struct apteryx_schema_node *node;
+    node = calloc (1, sizeof (struct apteryx_schema_node));
+    g_strlcpy (node->name, name, 256);
+    return node;
+}
+
+void
+node_destroy (struct apteryx_schema_node *node)
+{
+    g_list_free_full (node->children, (GDestroyNotify) node_destroy);
+    free (node->description);
+    free (node->defvalue);
+    free (node->value);
+    free (node->pattern);
+    free (node);
+}
+
 static void
-list_xml_files (GList **files, const char *path)
+list_schema_files (GList **files, const char *path)
 {
     DIR *dp;
     struct dirent *ep;
@@ -50,8 +64,12 @@ list_xml_files (GList **files, const char *path)
             while ((ep = readdir (dp)))
             {
                 char *filename = NULL;
-                if ((fnmatch ("*.xml", ep->d_name, FNM_PATHNAME) != 0) &&
-                    (fnmatch ("*.xml.gz", ep->d_name, FNM_PATHNAME) != 0))
+                if (true
+#ifdef HAVE_LIBXML
+                    && fnmatch ("*.xml", ep->d_name, FNM_PATHNAME) != 0
+                    && fnmatch ("*.xml.gz", ep->d_name, FNM_PATHNAME) != 0
+#endif
+                    )
                 {
                     continue;
                 }
@@ -68,115 +86,113 @@ list_xml_files (GList **files, const char *path)
     return;
 }
 
-/* Merge nodes from a new tree to the original tree */
 static void
-merge_nodes (xmlNode *orig, xmlNode *new, int depth)
+merge_nodes (struct apteryx_schema_node *orig, struct apteryx_schema_node *new, int depth)
 {
-    xmlNode *n;
-    xmlNode *o;
+    apteryx_schema_node *n;
+    apteryx_schema_node *o;
+    GList *n_iter;
+    GList *o_iter;
+    GList *stolen = NULL;
 
-    for (n = new; n; n = n->next)
+    /* For all the new children of this node */
+    for (n_iter = new->children; n_iter; n_iter = g_list_next (n_iter))
     {
-        char *orig_name = NULL;
-        char *new_name;
-        if (n->type != XML_ELEMENT_NODE)
+        n = (struct apteryx_schema_node *) n_iter->data;
+
+        /* Find a match in the original tree */
+        for (o_iter = orig->children; o_iter; o_iter = g_list_next (o_iter))
         {
-            continue;
+            o = (struct apteryx_schema_node *) o_iter->data;
+            if (g_strcmp0 (n->name, o->name) == 0)
+            {
+                break;
+            }
         }
-        new_name = (char *) xmlGetProp (n, (xmlChar *) "name");
-        if (new_name)
+        if (o_iter)
         {
-            for (o = orig; o; o = o->next)
-            {
-                orig_name = (char *) xmlGetProp (o, (xmlChar *) "name");
-                if (orig_name)
-                {
-                    if (strcmp (new_name, orig_name) == 0)
-                    {
-                        xmlFree (orig_name);
-                        break;
-                    }
-                    xmlFree (orig_name);
-                }
-            }
-            xmlFree (new_name);
-            if (o)
-            {
-                merge_nodes (o->children, n->children, depth + 1);
-            }
-            else
-            {
-                xmlAddPrevSibling (orig, xmlCopyNode (n, 1));
-            }
+            /* Matching node - merge children */
+            merge_nodes (o, n, depth + 1);
+        }
+        else
+        {
+            /* Does not match - steal it */
+            stolen = g_list_prepend (stolen, n);
         }
     }
+
+    /* Handle the stolen nodes */
+    for (n_iter = stolen; n_iter; n_iter = g_list_next (n_iter))
+    {
+        new->children = g_list_remove (new->children, n_iter->data);
+    }
+    orig->children = g_list_concat (orig->children, stolen);
+
     return;
 }
 
-/* Remove unwanted nodes and attributes from a parsed tree */
-static void
-cleanup_nodes (xmlNode *node)
+apteryx_schema_instance *
+apteryx_schema_load (const char *folders)
 {
-    xmlNode *n, *next;
-
-    n = node;
-    while (n)
-    {
-        next = n->next;
-        if (n->type == XML_ELEMENT_NODE)
-        {
-            cleanup_nodes (n->children);
-            xmlSetNs (n, NULL);
-        }
-        else
-        {
-            xmlUnlinkNode (n);
-            xmlFreeNode (n);
-        }
-        n = next;
-    }
-}
-
-/* Parse all XML files in the search path and merge trees */
-sch_instance *
-sch_load (const char *path)
-{
-    xmlDoc *doc = NULL;
+    struct apteryx_schema_instance *schema;
     GList *files = NULL;
     GList *iter;
 
-    list_xml_files (&files, path);
+    schema = calloc (1, sizeof (struct apteryx_schema_instance));
+    if (!schema)
+    {
+        ERROR ("APTERYX_SCHEMA: Memory allocation error.\n");
+        return NULL;
+    }
+    schema->modules = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, (GDestroyNotify) node_destroy);
+
+    /* Load all schema files in the path */
+    list_schema_files (&files, folders);
     for (iter = files; iter; iter = g_list_next (iter))
     {
         char *filename = (char *) iter->data;
-        xmlDoc *new = xmlParseFile (filename);
-        if (new == NULL)
+        apteryx_schema_node *root = NULL;
+
+#ifdef HAVE_LIBXML
+        if ((fnmatch ("*.xml", filename, FNM_PATHNAME) != 0) &&
+            (fnmatch ("*.xml.gz", filename, FNM_PATHNAME) != 0))
         {
-            syslog (LOG_ERR, "LUA: failed to parse \"%s\"", filename);
-            continue;
+            root = xml_schema_load (filename);
         }
-        cleanup_nodes (xmlDocGetRootElement (new)->children);
-        if (doc == NULL)
+#endif
+        if (root)
         {
-            doc = new;
+            apteryx_schema_node *orig = NULL;
+
+            /* Check if this needs merging in */
+            orig = (struct apteryx_schema_node *) g_hash_table_lookup (schema->modules, root->name);
+            if (orig)
+            {
+                /* Merge into the original tree */
+                merge_nodes (orig, root, 0);
+                node_destroy (root);
+            }
+            else
+            {
+                /* Add to the hash table as a new root */
+                g_hash_table_replace (schema->modules, g_strdup (root->name), root);
+            }
         }
         else
         {
-            merge_nodes (xmlDocGetRootElement (doc)->children,
-                         xmlDocGetRootElement (new)->children, 0);
-            xmlFreeDoc (new);
+            ERROR ("APTERYX-SCHEMA: Failed to parse schema from file \"%s\".\n", filename);
         }
     }
     g_list_free_full (files, free);
 
-    return (sch_instance *) xmlDocGetRootElement (doc);
+    return schema;
 }
 
 void
-sch_free (sch_instance *schema)
+apteryx_schema_free (apteryx_schema_instance *schema)
 {
-    xmlNode *xml = (xmlNode *) schema;
-    xmlFreeDoc (xml->doc);
+    g_hash_table_destroy (schema->modules);
+    free (schema);
 }
 
 static gboolean
@@ -199,13 +215,12 @@ match_name (const char *s1, const char *s2)
     return false;
 }
 
-static xmlNode *
-lookup_node (xmlNode *node, const char *path)
+static struct apteryx_schema_node *
+lookup_node (struct apteryx_schema_node *node, const char *path, int depth)
 {
-    xmlNode *n;
-    char *name, *mode;
     char *key = NULL;
     int len;
+    GList *iter;
 
     if (!node)
     {
@@ -228,173 +243,134 @@ lookup_node (xmlNode *node, const char *path)
         key = strdup (path);
         path = NULL;
     }
-    for (n = node->children; n; n = n->next)
+
+    for (iter = node->children; iter; iter = g_list_next (iter))
     {
-        if (n->type != XML_ELEMENT_NODE)
+        struct apteryx_schema_node *n = (struct apteryx_schema_node *) iter->data;
+
+        DEBUG ("%*sCMP: %s to %s", depth*2, " ", key, n->name);
+
+        if (n->name && (n->name[0] == '*' ||  match_name (n->name, key)))
         {
-            continue;
-        }
-        name = (char *) xmlGetProp (n, (xmlChar *) "name");
-        if (name && (name[0] == '*' || match_name (name, key)))
-        {
+            DEBUG(" - MATCH\n");
             free (key);
             if (path)
             {
-                mode = (char *) xmlGetProp (n, (xmlChar *) "mode");
-                if (mode && strchr (mode, 'p') != NULL)
-                {
-                    xmlFree (name);
-                    xmlFree (mode);
-                    /* restart search from root */
-                    return lookup_node (xmlDocGetRootElement (node->doc), path);
-                }
-                xmlFree (name);
-                if (mode)
-                {
-                    xmlFree (mode);
-                }
-                return lookup_node (n, path);
+                return lookup_node (n, path, depth+1);
             }
-            xmlFree (name);
             return n;
         }
-
-        if (name)
-        {
-            xmlFree (name);
-        }
+        DEBUG(" - NO\n");
     }
 
     free (key);
     return NULL;
 }
 
-sch_node *
-sch_lookup (sch_instance *schema, const char *path)
+apteryx_schema_node *
+apteryx_schema_lookup (apteryx_schema_instance *schema, const char *path)
 {
-    return lookup_node ((xmlNode *) schema, path);
+    struct apteryx_schema_node *root;
+    struct apteryx_schema_node *node;
+
+    DEBUG ("LOOKUP: %s\n", path);
+
+    /* Find root node */
+    char *rpath = g_strdup (path + 1);
+    char *tmp = strchr (rpath, '/');
+    if (tmp)
+        *tmp = '\0';
+
+    /* Find the root node */
+    root = (struct apteryx_schema_node *) g_hash_table_lookup (schema->modules, rpath);
+    if (!root)
+    {
+        DEBUG ("No root node for %s\n", rpath);
+        free (rpath);
+        return NULL;
+    }
+
+    /* Check if we only want the root */
+    if (strlen (path) == (strlen (rpath) + 1))
+    {
+        node = root;
+    }
+    else
+    {
+        /* Recursively find the node */
+        node = lookup_node (root, path + strlen (rpath) + 1, 0);
+    }
+
+    free (rpath);
+    return node;
 }
 
 bool
-sch_is_leaf (sch_node *node)
+apteryx_schema_is_leaf (apteryx_schema_node *node)
 {
-    xmlNode *xml = (xmlNode *) node;
-    xmlNode *n;
-
-    if (!xml->children)
-    {
-        return true;
-    }
-    for (n = xml->children; n; n = n->next)
-    {
-        if (n->type == XML_ELEMENT_NODE && n->name[0] == 'N')
-        {
-            return false;
-        }
-    }
-    return true;
+    return (node->flags & NODE_FLAGS_LEAF) == NODE_FLAGS_LEAF;
 }
 
 bool
-sch_is_readable (sch_node *node)
+apteryx_schema_is_readable (apteryx_schema_node *node)
 {
-    xmlNode *xml = (xmlNode *) node;
-    bool access = false;
-    char *mode = (char *) xmlGetProp (xml, (xmlChar *) "mode");
-    if (!mode || strchr (mode, 'r') != NULL)
-    {
-        access = true;
-    }
-    free (mode);
-    return access;
+    return (node->flags & NODE_FLAGS_READ) == NODE_FLAGS_READ;
 }
 
 bool
-sch_is_writable (sch_node *node)
+apteryx_schema_is_writable (apteryx_schema_node *node)
 {
-    xmlNode *xml = (xmlNode *) node;
-    bool access = false;
-    char *mode = (char *) xmlGetProp (xml, (xmlChar *) "mode");
-    if (mode && strchr (mode, 'w') != NULL)
-    {
-        access = true;
-    }
-    free (mode);
-    return access;
-}
-
-bool
-sch_is_config (sch_node *node)
-{
-    xmlNode *xml = (xmlNode *) node;
-    bool access = false;
-    char *mode = (char *) xmlGetProp (xml, (xmlChar *) "mode");
-    if (mode && strchr (mode, 'c') != NULL)
-    {
-        access = true;
-    }
-    free (mode);
-    return access;
+    return (node->flags & NODE_FLAGS_WRITE) == NODE_FLAGS_WRITE;
 }
 
 char *
-sch_translate_to (sch_node *node, char *value)
+apteryx_schema_translate_to (apteryx_schema_node *node, char *value)
 {
-    xmlNode *xml = (xmlNode *) node;
-    xmlNode *n;
-    char *val;
+    GList *iter;
 
     /* Get the default if needed - untranslated */
-    if (!value)
+    if (!value && node->defvalue)
     {
-        value = (char *) xmlGetProp (node, (xmlChar *) "default");
+        value = g_strdup (node->defvalue);
     }
-
-    /* Find the VALUE node with this value */
-    for (n = xml->children; n && value; n = n->next)
+    
+    /* Find an ENUM node with this value */
+    for (iter = node->children; iter; iter = g_list_next (iter))
     {
-        if (n->type == XML_ELEMENT_NODE && n->name[0] == 'V')
+        apteryx_schema_node *n = (apteryx_schema_node *) iter->data;
+        if ((n->flags & NODE_FLAGS_ENUM) == NODE_FLAGS_ENUM &&
+            g_strcmp0 (value, n->value) == 0)
         {
-            val = (char *) xmlGetProp (n, (xmlChar *) "value");
-            if (val && strcmp (value, val) == 0)
-            {
-                free (value);
-                free (val);
-                return (char *) xmlGetProp (n, (xmlChar *) "name");
-            }
-            free (val);
+            free (value);
+            value = g_strdup (n->name);
+            break;
         }
     }
     return value;
 }
 
 char *
-sch_translate_from (sch_node *node, char *value)
+apteryx_schema_translate_from (apteryx_schema_node *node, char *value)
 {
-    xmlNode *xml = (xmlNode *) node;
-    xmlNode *n;
-    char *val;
+    GList *iter;
 
-    /* Find the VALUE node with this name */
-    for (n = xml->children; n && value; n = n->next)
+    /* Find an ENUM node with this name */
+    for (iter = node->children; iter; iter = g_list_next (iter))
     {
-        if (n->type == XML_ELEMENT_NODE && n->name[0] == 'V')
+        apteryx_schema_node *n = (apteryx_schema_node *) iter->data;
+        if ((n->flags & NODE_FLAGS_ENUM) == NODE_FLAGS_ENUM &&
+            g_strcmp0 (value, n->name) == 0)
         {
-            val = (char *) xmlGetProp (n, (xmlChar *) "name");
-            if (val && strcmp (value, val) == 0)
-            {
-                free (value);
-                free (val);
-                return (char *) xmlGetProp (n, (xmlChar *) "value");
-            }
-            free (val);
+            free (value);
+            value = g_strdup (n->value);
+            break;
         }
     }
     return value;
 }
 
 char*
-sch_name (sch_node *node)
+apteryx_schema_name (apteryx_schema_node *node)
 {
-    return (char *) xmlGetProp (node, (xmlChar *) "name");
+    return node ? g_strdup (node->name) : NULL;
 }

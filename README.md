@@ -3,12 +3,12 @@ Database schema support for Apteryx.
 
 ## Requires
 ```
-apteryx glib-2.0
+apteryx glib-2.0 libxml-2.0
 ```
 
 ## Optional
 ```
-lua libxml-2.0 xsltproc pyang
+lua xsltproc pyang
 ```
 
 ## Building
@@ -16,6 +16,14 @@ lua libxml-2.0 xsltproc pyang
 ./autogen.sh
 ./configure
 make install
+```
+
+## Unit tests
+```
+make test
+google-chrome gcov/index.html
+TEST_WRAPPER="LD_PRELOAD=.libs/libapteryx_schema.so G_SLICE=always-malloc valgrind --leak-check=full" make test
+TEST_WRAPPER="gdb" make test
 ```
 
 ## XML Schema definition

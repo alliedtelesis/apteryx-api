@@ -5,6 +5,7 @@
 *.lo
 *.pc
 unittest
+gcov/
 
 # Autotools
 m4/*

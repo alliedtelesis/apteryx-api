@@ -21,18 +21,16 @@
 #ifndef _APTERYX_SCHEMA_H_
 #define _APTERYX_SCHEMA_H_
 
-/* Schema */
-typedef void sch_instance;
-typedef void sch_node;
-sch_instance* sch_load (const char *path);
-void sch_free (sch_instance *schema);
-sch_node* sch_lookup (sch_instance *schema, const char *path);
-bool sch_is_leaf (sch_node *node);
-bool sch_is_readable (sch_node *node);
-bool sch_is_writable (sch_node *node);
-bool sch_is_config (sch_node *node);
-char* sch_name (sch_node *node);
-char* sch_translate_to (sch_node *node, char *value);
-char* sch_translate_from (sch_node *node, char *value);
+typedef struct apteryx_schema_instance apteryx_schema_instance;
+typedef struct apteryx_schema_node apteryx_schema_node;
+apteryx_schema_instance* apteryx_schema_load (const char *folders);
+void apteryx_schema_free (apteryx_schema_instance *schema);
+apteryx_schema_node* apteryx_schema_lookup (apteryx_schema_instance *schema, const char *path);
+bool apteryx_schema_is_leaf (apteryx_schema_node *node);
+bool apteryx_schema_is_readable (apteryx_schema_node *node);
+bool apteryx_schema_is_writable (apteryx_schema_node *node);
+char* apteryx_schema_name (apteryx_schema_node *node);
+char* apteryx_schema_translate_to (apteryx_schema_node *node, char *value);
+char* apteryx_schema_translate_from (apteryx_schema_node *node, char *value);
 
 #endif /* _APTERYX_SCHEMA_H_ */
