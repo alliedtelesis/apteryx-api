@@ -13,7 +13,7 @@ if HAVE_LIBXML
 libapteryx_schema_la_CFLAGS += -DHAVE_LIBXML @LIBXML_CFLAGS@
 endif
 if HAVE_LUA
-libapteryx_schema_la_CFLAGS += @LUA_CFLAGS@
+libapteryx_schema_la_CFLAGS += -DHAVE_LUA @LUA_CFLAGS@
 endif
 libapteryx_schema_la_CFLAGS += @APTERYX_CFLAGS@ @GLIB_CFLAGS@
 
@@ -37,7 +37,7 @@ if HAVE_TESTS
 noinst_PROGRAMS = unittest
 unittest_SOURCES = test.c $(libapteryx_schema_la_SOURCES)
 unittest_CFLAGS = $(libapteryx_schema_la_CFLAGS) -g -fprofile-arcs -fprofile-dir=gcov -ftest-coverage
-unittest_LDADD = -lcunit -lapteryx_schema $(libapteryx_schema_la_LIBADD)
+unittest_LDADD = -lapteryx_schema $(libapteryx_schema_la_LIBADD)
 
 # TEST_WRAPPER="LD_PRELOAD=.libs/libapteryx_schema.so G_SLICE=always-malloc valgrind --leak-check=full" make test
 # TEST_WRAPPER="gdb" make test
