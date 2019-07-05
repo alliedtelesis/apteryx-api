@@ -66,8 +66,11 @@ list_schema_files (GList **files, const char *path)
                 char *filename = NULL;
                 if (true
 #ifdef HAVE_LIBXML
-                    && fnmatch ("*.xml", ep->d_name, FNM_PATHNAME) != 0
-                    && fnmatch ("*.xml.gz", ep->d_name, FNM_PATHNAME) != 0
+                    && fnmatch ("*.xml", ep->d_name, 0) != 0
+                    && fnmatch ("*.xml.gz", ep->d_name, 0) != 0
+#endif
+#ifdef HAVE_LIBYANG
+                    && fnmatch ("*.yang", ep->d_name, 0) != 0
 #endif
                     )
                 {
@@ -83,6 +86,7 @@ list_schema_files (GList **files, const char *path)
         dpath = strtok_r (NULL, ":", &saveptr);
     }
     free (cpath);
+    *files = g_list_sort (*files, (GCompareFunc) strcasecmp);
     return;
 }
 
@@ -117,7 +121,7 @@ merge_nodes (struct apteryx_schema_node *orig, struct apteryx_schema_node *new, 
         else
         {
             /* Does not match - steal it */
-            stolen = g_list_prepend (stolen, n);
+            stolen = g_list_append (stolen, n);
         }
     }
 
@@ -153,11 +157,17 @@ apteryx_schema_load (const char *folders)
         char *filename = (char *) iter->data;
         apteryx_schema_node *root = NULL;
 
+        DEBUG ("APTERYX_SCHEMA: Parse %s\n", filename);
 #ifdef HAVE_LIBXML
-        if ((fnmatch ("*.xml", filename, FNM_PATHNAME) != 0) &&
-            (fnmatch ("*.xml.gz", filename, FNM_PATHNAME) != 0))
+        if (fnmatch ("*.xml", filename, 0) == 0 || fnmatch ("*.xml.gz", filename, 0) == 0)
         {
             root = xml_schema_load (filename);
+        }
+#endif
+#ifdef HAVE_LIBYANG
+        if (fnmatch ("*.yang", filename, 0) == 0)
+        {
+            root = yang_schema_load (filename);
         }
 #endif
         if (root)
@@ -169,6 +179,7 @@ apteryx_schema_load (const char *folders)
             if (orig)
             {
                 /* Merge into the original tree */
+                DEBUG ("APTERYX_SCHEMA: Merging \"%s\" into  \"/%s\"\n", filename, orig->name);
                 merge_nodes (orig, root, 0);
                 node_destroy (root);
             }
@@ -193,6 +204,62 @@ apteryx_schema_free (apteryx_schema_instance *schema)
 {
     g_hash_table_destroy (schema->modules);
     free (schema);
+}
+
+static void
+_node_dump (GString *buffer, struct apteryx_schema_node *node, int depth)
+{
+    GList *iter;
+
+    GString *s = g_string_new (NULL);
+    g_string_append_printf (s, "%*s%s", depth * 2, " ", node->name);
+    if (node->flags & NODE_FLAGS_ENUM)
+    {
+        g_string_append_printf (s, "[%s]", node->value);
+    }
+    else if (node->flags && (node->flags != NODE_FLAGS_LEAF))
+    {
+        g_string_append_printf (s, "[");
+        if (node->flags & NODE_FLAGS_READ)
+            g_string_append_printf (s, "r");
+        if (node->flags & NODE_FLAGS_WRITE)
+            g_string_append_printf (s, "w");
+        g_string_append_printf (s, "]");
+    }
+    if (node->description)
+    {
+        int pad = (s->len >= 32) ? 0 : (32 - s->len);
+        g_string_append_printf (s, "%*s\"%s\"", pad, " ", node->description);
+    }
+    if (node->defvalue)
+    {
+        g_string_append_printf (s, " %s", node->defvalue);
+    }
+    if (node->pattern)
+    {
+        g_string_append_printf (s, " %s", node->pattern);
+    }
+    g_string_append_printf (s, "\n");
+    g_string_append (buffer, g_string_free (s, false));
+
+    for (iter = node->children; iter; iter = g_list_next (iter))
+    {
+        _node_dump (buffer, (struct apteryx_schema_node *) iter->data, depth + 1);
+    }
+}
+
+static void
+_schema_dump (gpointer key, gpointer value, gpointer user_data)
+{
+    _node_dump ((GString *) user_data, (struct apteryx_schema_node *) value, 0);
+}
+
+void
+apteryx_schema_dump (FILE *fp, apteryx_schema_instance *schema)
+{
+    GString *s = g_string_new (NULL);
+    g_hash_table_foreach (schema->modules, _schema_dump, (gpointer) s);
+    fprintf (fp, "%s", g_string_free (s, false));
 }
 
 static gboolean

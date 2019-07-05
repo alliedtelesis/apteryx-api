@@ -45,8 +45,6 @@ xml_to_node (xmlNode *xml, int depth)
     node = node_create (field);
     xmlFree (field);
 
-    DEBUG ("%*s%s", depth * 2, " ", node->name);
-
     /* Default */
     field = (char *) xmlGetProp (xml, (xmlChar *) "default");
     if (field)
@@ -75,8 +73,8 @@ xml_to_node (xmlNode *xml, int depth)
         {
             node->flags |= NODE_FLAGS_WRITE;
         }
-        //TODO 'c' and 'p'
-        DEBUG ("[%s]", field);
+        //TODO config
+        //TODO hidden
         xmlFree (field);
     }
 
@@ -89,7 +87,6 @@ xml_to_node (xmlNode *xml, int depth)
         {
             node->value = g_strdup (field);
             node->flags |= NODE_FLAGS_ENUM;
-            DEBUG ("[=%s]", field);
             xmlFree (field);
         }
     }
@@ -99,11 +96,8 @@ xml_to_node (xmlNode *xml, int depth)
     if (field)
     {
         node->description = g_strdup (field);
-        DEBUG ("\t\t\"%s\"", field);
         xmlFree (field);
     }
-
-    DEBUG ("\n");
 
     /* Leaf */
     if (!xml->children || g_strcmp0 (xml->children->name, "VALUE") == 0)
@@ -116,7 +110,7 @@ xml_to_node (xmlNode *xml, int depth)
     {
         struct apteryx_schema_node *cn = xml_to_node (child, depth + 1);
         if (cn)
-            node->children = g_list_prepend (node->children, cn);
+            node->children = g_list_append (node->children, cn);
     }
 
     return node;

@@ -23,6 +23,18 @@ if test x$xml = xtrue; then
     PKG_CHECK_MODULES([LIBXML],[libxml-2.0])
 fi
 
+AC_ARG_ENABLE([yang],
+[  --enable-yang           support Yang based schema (default=yes)],
+[case "${enableval}" in
+  yes) yang=true ;;
+  no)  yang=false ;;
+  *) AC_MSG_ERROR([bad value ${enableval} for --enable-yang]) ;;
+esac],[yang=true])
+AM_CONDITIONAL([HAVE_LIBYANG], [test x$yang = xtrue])
+if test x$yang = xtrue; then
+    PKG_CHECK_MODULES([LIBYANG],[libyang])
+fi
+
 AC_ARG_ENABLE([lua],
 [  --enable-lua            build lua api (default=yes)],
 [case "${enableval}" in

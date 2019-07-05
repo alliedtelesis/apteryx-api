@@ -65,9 +65,13 @@ struct apteryx_schema_node
 struct apteryx_schema_node * node_create (const char *name);
 void node_destroy (struct apteryx_schema_node *node);
 
-/* XML schema support */
 #ifdef HAVE_LIBXML
+/* XML schema support */
 struct apteryx_schema_node * xml_schema_load (const char *filename);
+#endif
+#ifdef HAVE_LIBYANG
+/* Yang schema support */
+struct apteryx_schema_node * yang_schema_load (const char *filename);
 #endif
 
 #endif /* _INTERNAL_H_ */

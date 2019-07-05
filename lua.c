@@ -397,7 +397,7 @@ luaopen_libapteryx_schema (lua_State *L)
     };
 
     /* Initialise Apteryx */
-    if (!apteryx_init (false))
+    if (!apteryx_init (apteryx_schema_debug))
     {
         return 0;
     }
