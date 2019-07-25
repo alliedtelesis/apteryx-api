@@ -137,7 +137,7 @@ yang_to_node (const struct lys_node *yang, int depth)
 
 /* Load an Apteryx schema in XML format */
 struct apteryx_schema_node *
-yang_schema_load (const char *filename)
+yang_schema_load (const char *filename, char **name, char **organization, char **version)
 {
     struct apteryx_schema_node *root = NULL;
     struct ly_ctx *ctx;
@@ -159,6 +159,12 @@ yang_schema_load (const char *filename)
         ly_ctx_destroy (ctx, NULL);
         return NULL;
     }
+
+    /* Model attributes */
+    *name = g_strdup (mod->name);
+    *organization = g_strdup (mod->org);
+    if (mod->rev_size)
+        *version = g_strdup (mod->rev[0].date);
 
     /* Get root node */
     node = lys_getnext (NULL, NULL, mod, LYS_GETNEXT_NOSTATECHECK);

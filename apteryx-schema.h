@@ -22,10 +22,16 @@
 #define _APTERYX_SCHEMA_H_
 
 typedef struct apteryx_schema_instance apteryx_schema_instance;
+typedef struct apteryx_schema_model apteryx_schema_model;
 typedef struct apteryx_schema_node apteryx_schema_node;
 apteryx_schema_instance* apteryx_schema_load (const char *folders);
 void apteryx_schema_free (apteryx_schema_instance *schema);
 void apteryx_schema_dump (FILE *fp, apteryx_schema_instance *schema);
+apteryx_schema_model* apteryx_schema_first_model (apteryx_schema_instance *schema);
+apteryx_schema_model* apteryx_schema_next_model (apteryx_schema_instance *schema, apteryx_schema_model *model);
+const char* apteryx_schema_model_name (apteryx_schema_model *model);
+const char* apteryx_schema_model_organization (apteryx_schema_model *model);
+const char* apteryx_schema_model_version (apteryx_schema_model *model);
 apteryx_schema_node* apteryx_schema_lookup (apteryx_schema_instance *schema, const char *path);
 bool apteryx_schema_is_leaf (apteryx_schema_node *node);
 bool apteryx_schema_is_readable (apteryx_schema_node *node);

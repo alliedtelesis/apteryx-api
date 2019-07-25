@@ -40,11 +40,24 @@ extern bool apteryx_schema_debug;
         fprintf (stderr, fmt, ## args); \
     }
 
+/* Module */
+struct apteryx_schema_model
+{
+    /* Name of the model */
+    char *name;
+    /* Organization publishing the model */
+    char *organization;
+    /* Semantic version of the model */
+    char *version;
+};
+
 /* Instance */
 struct apteryx_schema_instance
 {
     /* Hash table of root nodes */
-    GHashTable *modules;
+    GHashTable *roots;
+    /* List of load models */
+    GList *models;
 };
 
 /* Node */
@@ -71,7 +84,7 @@ struct apteryx_schema_node * xml_schema_load (const char *filename);
 #endif
 #ifdef HAVE_LIBYANG
 /* Yang schema support */
-struct apteryx_schema_node * yang_schema_load (const char *filename);
+struct apteryx_schema_node * yang_schema_load (const char *filename, char **name, char **organization, char **version);
 #endif
 
 #endif /* _INTERNAL_H_ */

@@ -25,6 +25,26 @@
 /* Debug */
 bool apteryx_schema_debug = false;
 
+struct apteryx_schema_model *
+model_create (char *name, char *organization, char *version)
+{
+    struct apteryx_schema_model *model;
+    model = calloc (1, sizeof (struct apteryx_schema_model));
+    model->name = name;
+    model->organization = organization;
+    model->version = version;
+    return model;
+}
+
+void
+model_destroy (struct apteryx_schema_model *model)
+{
+    free (model->name);
+    free (model->organization);
+    free (model->version);
+    free (model);
+}
+
 struct apteryx_schema_node *
 node_create (const char *name)
 {
@@ -148,7 +168,7 @@ apteryx_schema_load (const char *folders)
         ERROR ("APTERYX_SCHEMA: Memory allocation error.\n");
         return NULL;
     }
-    schema->modules = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, (GDestroyNotify) node_destroy);
+    schema->roots = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, (GDestroyNotify) node_destroy);
 
     /* Load all schema files in the path */
     list_schema_files (&files, folders);
@@ -156,6 +176,9 @@ apteryx_schema_load (const char *folders)
     {
         char *filename = (char *) iter->data;
         apteryx_schema_node *root = NULL;
+        char *name = NULL;
+        char *organization = NULL;
+        char *version = NULL;
 
         DEBUG ("APTERYX_SCHEMA: Parse %s\n", filename);
 #ifdef HAVE_LIBXML
@@ -167,7 +190,7 @@ apteryx_schema_load (const char *folders)
 #ifdef HAVE_LIBYANG
         if (fnmatch ("*.yang", filename, 0) == 0)
         {
-            root = yang_schema_load (filename);
+            root = yang_schema_load (filename, &name, &organization, &version);
         }
 #endif
         if (root)
@@ -175,7 +198,7 @@ apteryx_schema_load (const char *folders)
             apteryx_schema_node *orig = NULL;
 
             /* Check if this needs merging in */
-            orig = (struct apteryx_schema_node *) g_hash_table_lookup (schema->modules, root->name);
+            orig = (struct apteryx_schema_node *) g_hash_table_lookup (schema->roots, root->name);
             if (orig)
             {
                 /* Merge into the original tree */
@@ -186,8 +209,12 @@ apteryx_schema_load (const char *folders)
             else
             {
                 /* Add to the hash table as a new root */
-                g_hash_table_replace (schema->modules, g_strdup (root->name), root);
+                g_hash_table_replace (schema->roots, g_strdup (root->name), root);
             }
+
+            /* Add to model list */
+            if (name)
+                schema->models = g_list_prepend (schema->models, model_create (name, organization, version));
         }
         else
         {
@@ -196,13 +223,16 @@ apteryx_schema_load (const char *folders)
     }
     g_list_free_full (files, free);
 
+    /* Ensure creation order of models */
+    schema->models = g_list_reverse (schema->models);
     return schema;
 }
 
 void
 apteryx_schema_free (apteryx_schema_instance *schema)
 {
-    g_hash_table_destroy (schema->modules);
+    g_hash_table_destroy (schema->roots);
+    g_list_free_full (schema->models, (GDestroyNotify) model_destroy);
     free (schema);
 }
 
@@ -258,8 +288,40 @@ void
 apteryx_schema_dump (FILE *fp, apteryx_schema_instance *schema)
 {
     GString *s = g_string_new (NULL);
-    g_hash_table_foreach (schema->modules, _schema_dump, (gpointer) s);
+    g_hash_table_foreach (schema->roots, _schema_dump, (gpointer) s);
     fprintf (fp, "%s", g_string_free (s, false));
+}
+
+apteryx_schema_model*
+apteryx_schema_first_model (apteryx_schema_instance *schema)
+{
+    return schema->models ? g_list_first (schema->models)->data : NULL;
+}
+
+apteryx_schema_model*
+apteryx_schema_next_model (apteryx_schema_instance *schema, apteryx_schema_model *model)
+{
+    GList *node = g_list_find (schema->models, (gconstpointer) model);
+    node = node ? g_list_next (node) : NULL;
+    return node ? (apteryx_schema_model *)node->data : NULL;
+}
+
+const char *
+apteryx_schema_model_name (apteryx_schema_model *model)
+{
+    return model->name;
+}
+
+const char *
+apteryx_schema_model_organization (apteryx_schema_model *model)
+{
+    return model->organization;
+}
+
+const char *
+apteryx_schema_model_version (apteryx_schema_model *model)
+{
+    return model->version;
 }
 
 static gboolean
@@ -349,7 +411,7 @@ apteryx_schema_lookup (apteryx_schema_instance *schema, const char *path)
         *tmp = '\0';
 
     /* Find the root node */
-    root = (struct apteryx_schema_node *) g_hash_table_lookup (schema->modules, rpath);
+    root = (struct apteryx_schema_node *) g_hash_table_lookup (schema->roots, rpath);
     if (!root)
     {
         DEBUG ("No root node for %s\n", rpath);

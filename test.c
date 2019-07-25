@@ -155,6 +155,14 @@ generate_yang_schemas (gpointer fixture, gconstpointer data)
         "module test {"
             "namespace \"https://github.com/alliedtelesis/apteryx\";"
             "prefix test;"
+            "organization \"The organization name\";"
+            "revision 2018-02-20 {"
+                "description \"Updated to support revisions.\";"
+            "}"
+            "revision 2014-05-08 {"
+                "description \"Original version\";"
+                "reference \"RFC 6020 - YANG - A Data Modeling Language for the Network Configuration Protocol (NETCONF)\";"
+            "}"
             "container test {"
                 "description \"This is a test node\";"
                 "leaf debug {"
@@ -261,6 +269,27 @@ test_api_parse (gpointer fixture, gconstpointer data)
     if (apteryx_schema_debug)
     {
         apteryx_schema_dump (stdout, schema);
+    }
+    apteryx_schema_free (schema);
+    g_assert_true (assert_apteryx_empty ());
+}
+
+static void
+test_api_models (gpointer fixture, gconstpointer data)
+{
+    apteryx_schema_instance *schema = apteryx_schema_load (TEST_SCHEMA_PATH);
+    g_assert_nonnull (schema);
+    apteryx_schema_model *model = apteryx_schema_first_model (schema);
+    while (model)
+    {
+        if (apteryx_schema_debug)
+        {
+            printf ("Model: name:\"%s\" organization:\"%s\" version:\"%s\"\n",
+                apteryx_schema_model_name (model),
+                apteryx_schema_model_organization (model),
+                apteryx_schema_model_version (model));
+        }
+        model = apteryx_schema_next_model (schema, model);
     }
     apteryx_schema_free (schema);
     g_assert_true (assert_apteryx_empty ());
@@ -502,6 +531,7 @@ add_tests (GTestSuite *suite, GTestFixtureFunc setup, GTestFixtureFunc teardown)
     GTestSuite *api = g_test_create_suite ("api");
     g_test_suite_add_suite (suite, api);
     g_test_suite_add (api, g_test_create_case ("parse", 0, NULL, setup, test_api_parse, teardown));
+    g_test_suite_add (api, g_test_create_case ("model", 0, NULL, setup, test_api_models, teardown));
 #ifdef HAVE_LUA
     GTestSuite *lua = g_test_create_suite ("lua");
     g_test_suite_add_suite (suite, lua);
